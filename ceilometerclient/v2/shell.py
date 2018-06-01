@@ -294,6 +294,21 @@ def do_sample_create_list(cc, args={}):
     utils.print_list(samples, fields, field_labels, sortby=None)
 
 
+@utils.arg('-q', '--query', metavar='<QUERY>',
+           help='key[op]data_type::value; list. data_type is optional, '
+                'but if supplied must be string, integer, float, or boolean.')
+@utils.arg('-l', '--limit', metavar='<NUMBER>',
+           help='Maximum number of meters to return.')
+def do_metertype_list(cc, args={}):
+    """List the user's meter types."""
+    meter_types = cc.metertypes.list(q=options.cli_to_array(args.query),
+                                     limit=args.limit)
+    field_labels = ['Name', 'Type', 'Unit']
+    fields = ['name', 'type', 'unit']
+    utils.print_list(meter_types, fields, field_labels,
+                     sortby=0)
+
+
 def _display_alarm_list(alarms, sortby=None):
     # omit action initially to keep output width sane
     # (can switch over to vertical formatting when available from CLIFF)
@@ -1125,6 +1140,91 @@ def do_resource_show(cc, args={}):
                   'project_id', 'metadata']
         data = dict([(f, getattr(resource, f, '')) for f in fields])
         utils.print_dict(data, wrap=72)
+
+
+# Code related to showing pipeline data (currently: CSV publisher)
+# fields = ['name', 'enabled', 'location', 'max_bytes',
+#           'backup_count', 'compress']
+
+def common_pipeline_arguments(create=False):
+    def _wrapper(func):
+        @utils.arg('--name', metavar='<NAME>', required=create,
+                   help='Name of the pipeline (must be unique per tenant)')
+        @utils.arg('--enabled', type=strutils.bool_from_string,
+                   metavar='{True|False}',
+                   help='True if enabling this pipeline')
+        @utils.arg('--location', metavar='<LOCATION>',
+                   help='Full path of the output file.')
+        @utils.arg('--backup_count', type=int, metavar='<BACKUP_COUNT>',
+                   help='Number of backup files to keep')
+        @utils.arg('--max_bytes', type=int, metavar='<MAX_BYTES>',
+                   help='Maximum size of the file in bytes')
+        @utils.arg('--compress', type=strutils.bool_from_string,
+                   metavar='{True|False}',
+                   help='True if compressing backups')
+        @functools.wraps(func)
+        def _wrapped(*args, **kwargs):
+            return func(*args, **kwargs)
+        return _wrapped
+    return _wrapper
+
+
+def _show_pipeline(pipeline):
+    fields = ['name', 'enabled', 'location', 'max_bytes',
+              'backup_count', 'compress']
+    data = dict([(f, getattr(pipeline, f, '')) for f in fields])
+    utils.print_dict(data, wrap=72)
+
+
+@utils.arg('-q', '--query', metavar='<QUERY>',
+           help='key[op]value; list.')
+def do_pipeline_list(cc, args={}):
+    '''List the pipelines.'''
+    pipelines = cc.pipelines.list(q=options.cli_to_array(args.query))
+    field_labels = ['Name', 'Enabled', 'Location', 'Max Bytes',
+                    'Backup Count', 'Compress']
+    fields = ['name', 'enabled', 'location', 'max_bytes',
+              'backup_count', 'compress']
+    utils.print_list(pipelines, fields, field_labels,
+                     sortby=1)
+
+
+@utils.arg('-n', '--name', metavar='<PIPELINE_NAME>', required=True,
+           help='Name of the pipeline to show.')
+def do_pipeline_show(cc, args={}):
+    '''Show the pipeline.'''
+    try:
+        pipeline = cc.pipelines.get(args.name)
+    except exc.HTTPNotFound:
+        raise exc.CommandError('Pipeline not found: %s' % args.name)
+    _show_pipeline(pipeline)
+
+
+@utils.arg('-n', '--name', metavar='<PIPELINE_NAME>', required=True,
+           help='Name of the pipline to update.')
+@utils.arg('--enabled', type=strutils.bool_from_string,
+           metavar='{True|False}',
+           help='True if enabling this pipeline')
+@utils.arg('--location', metavar='<LOCATION>',
+           help='Full path of the output file.')
+@utils.arg('--backup_count', type=int, metavar='<BACKUP_COUNT>',
+           help='Number of backup files to keep')
+@utils.arg('--max_bytes', type=int, metavar='<MAX_BYTES>',
+           help='Maximum size of the file in bytes')
+@utils.arg('--compress', type=strutils.bool_from_string,
+           metavar='{True|False}',
+           help='True if compressing backups')
+def do_pipeline_update(cc, args={}):
+    '''Update output values for an existing csv pipeline.'''
+    fields = dict(filter(lambda x: not (x[1] is None), vars(args).items()))
+    fields = utils.key_with_slash_to_nested_dict(fields)
+    # We do not permit changing:  name
+    fields.pop('name')
+    try:
+        pipeline = cc.pipelines.update(args.name, **fields)
+    except exc.HTTPNotFound:
+        raise exc.CommandError('Pipeline not found: %s' % args.name)
+    _show_pipeline(pipeline)
 
 
 @utils.arg('-q', '--query', metavar='<QUERY>',

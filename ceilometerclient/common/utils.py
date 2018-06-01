@@ -15,6 +15,10 @@
 
 from __future__ import print_function
 
+from datetime import datetime
+import dateutil
+from dateutil import parser
+
 import os
 import textwrap
 
@@ -22,6 +26,8 @@ from oslo_serialization import jsonutils
 from oslo_utils import encodeutils
 import prettytable
 import six
+
+import re
 
 from ceilometerclient import exc
 
@@ -78,10 +84,15 @@ def print_list(objs, fields, field_labels, formatters=None, sortby=0):
         row = []
         for field in field_labels:
             if field in new_formatters:
-                row.append(new_formatters[field](o))
+                field_name = field.lower().replace(' ', '_')
+                data = getattr(o, field_name, '')
+                setattr(o, field_name, parse_date(data))
+                data = new_formatters[field](o)
+                row.append(data)
             else:
                 field_name = field.lower().replace(' ', '_')
                 data = getattr(o, field_name, '')
+                data = parse_date(data)
                 row.append(data)
         pt.add_row(row)
 
@@ -111,6 +122,34 @@ def format_nested_list_of_dict(l, column_names):
     return pt.get_string()
 
 
+def parse_date(string_data):
+    """Parses a datestring into a timezone aware Python datetime."""
+
+    if not isinstance(string_data, six.string_types):
+        return string_data
+
+    pattern = r'\d{4}-\d{2}-\d{2}[T| ]\d{2}:\d{2}:\d{2}(\.\d{6})?Z?'
+
+    def convert_date(matchobj):
+        formats = ["%Y-%m-%dT%H:%M:%S.%f", "%Y-%m-%d %H:%M:%S.%f",
+                   "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M:%S",
+                   "%Y-%m-%dT%H:%M:%SZ"]
+        datestring = matchobj.group(0)
+        if datestring:
+            for format in formats:
+                try:
+                    datetime.strptime(datestring, format)
+                    datestring += "+0000"
+                    parsed = parser.parse(datestring)
+                    converted = parsed.astimezone(dateutil.tz.tzlocal())
+                    return datetime.strftime(converted, format)
+                except Exception:
+                    pass
+        return datestring
+
+    return re.sub(pattern, convert_date, string_data)
+
+
 def print_dict(d, dict_property="Property", wrap=0):
     pt = prettytable.PrettyTable([dict_property, 'Value'], print_empty=False)
     pt.align = 'l'
@@ -126,11 +165,13 @@ def print_dict(d, dict_property="Property", wrap=0):
             for line in lines:
                 if wrap > 0:
                     line = textwrap.fill(six.text_type(line), wrap)
+                line = parse_date(line)
                 pt.add_row([col1, line])
                 col1 = ''
         else:
             if wrap > 0:
                 v = textwrap.fill(six.text_type(v), wrap)
+            v = parse_date(v)
             pt.add_row([k, v])
     encoded = encodeutils.safe_encode(pt.get_string())
     # FIXME(gordc): https://bugs.launchpad.net/oslo-incubator/+bug/1370710

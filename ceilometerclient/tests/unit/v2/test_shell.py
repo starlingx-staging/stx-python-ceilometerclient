@@ -20,6 +20,7 @@ import mock
 import six
 from testtools import matchers
 
+from ceilometerclient.common import utils as ccc_utils
 from ceilometerclient import exc
 from ceilometerclient import shell as base_shell
 from ceilometerclient.tests.unit import test_shell
@@ -29,6 +30,8 @@ from ceilometerclient.v2 import capabilities
 from ceilometerclient.v2 import event_types
 from ceilometerclient.v2 import events
 from ceilometerclient.v2 import meters
+from ceilometerclient.v2 import metertypes
+from ceilometerclient.v2 import pipelines
 from ceilometerclient.v2 import resources
 from ceilometerclient.v2 import samples
 from ceilometerclient.v2 import shell as ceilometer_shell
@@ -794,7 +797,7 @@ class ShellSampleListCommandTest(utils.BaseTestCase):
             q=None,
             limit=None)
 
-        self.assertEqual('''\
+        self.assertEqual(ccc_utils.parse_date('''\
 +--------------------------------------+----------+-------+----------------\
 +------+---------------------+
 | Resource ID                          | Name     | Type  | Volume         \
@@ -811,7 +814,7 @@ class ShellSampleListCommandTest(utils.BaseTestCase):
 | %    | 2013-10-15T05:40:29 |
 +--------------------------------------+----------+-------+----------------\
 +------+---------------------+
-''', sys.stdout.getvalue())
+'''), sys.stdout.getvalue())
 
     @mock.patch('sys.stdout', new=six.StringIO())
     def test_sample_list(self):
@@ -825,7 +828,7 @@ class ShellSampleListCommandTest(utils.BaseTestCase):
             q=None,
             limit=None)
 
-        self.assertEqual('''\
+        self.assertEqual(ccc_utils.parse_date('''\
 +--------------------------------------+--------------------------------------\
 +----------+-------+----------------+------+---------------------+
 | ID                                   | Resource ID                          \
@@ -842,7 +845,7 @@ class ShellSampleListCommandTest(utils.BaseTestCase):
 | cpu_util | gauge | 0.26           | %    | 2013-10-15T05:40:29 |
 +--------------------------------------+--------------------------------------\
 +----------+-------+----------------+------+---------------------+
-''', sys.stdout.getvalue())
+'''), sys.stdout.getvalue())
 
 
 class ShellSampleShowCommandTest(utils.BaseTestCase):
@@ -880,7 +883,7 @@ class ShellSampleShowCommandTest(utils.BaseTestCase):
         self.cc.new_samples.get.assert_called_once_with(
             "98b5f258-635e-11e4-8bdd-0025647390c1")
 
-        self.assertEqual('''\
+        self.assertEqual(ccc_utils.parse_date('''\
 +-------------+--------------------------------------+
 | Property    | Value                                |
 +-------------+--------------------------------------+
@@ -897,7 +900,7 @@ class ShellSampleShowCommandTest(utils.BaseTestCase):
 | user_id     | None                                 |
 | volume      | 1.0                                  |
 +-------------+--------------------------------------+
-''', sys.stdout.getvalue())
+'''), sys.stdout.getvalue())
 
     @mock.patch('sys.stdout', new=six.StringIO())
     def test_sample_show_raises_command_err(self):
@@ -1008,7 +1011,7 @@ class ShellSampleCreateListCommandTest(utils.BaseTestCase):
         ceilometer_shell.do_sample_create_list(self.cc, self.args)
         self.cc.samples.create_list.assert_called_with(self.samples,
                                                        direct=mock.ANY)
-        self.assertEqual('''\
+        self.assertEqual(ccc_utils.parse_date('''\
 +--------------------------------------+-------+------------+--------+-------\
 +----------------------------+
 | Resource ID                          | Name  | Type       | Volume | Unit  \
@@ -1027,7 +1030,7 @@ class ShellSampleCreateListCommandTest(utils.BaseTestCase):
 | 2015-05-19T12:00:08.368574 |
 +--------------------------------------+-------+------------+--------+-------\
 +----------------------------+
-''', sys.stdout.getvalue())
+'''), sys.stdout.getvalue())
 
 
 class ShellQuerySamplesCommandTest(utils.BaseTestCase):
@@ -1067,7 +1070,7 @@ class ShellQuerySamplesCommandTest(utils.BaseTestCase):
 
         ceilometer_shell.do_query_samples(self.cc, self.args)
 
-        self.assertEqual('''\
+        self.assertEqual(ccc_utils.parse_date('''\
 +--------------------------------------+--------------------------------------\
 +----------+-------+--------+----------+----------------------------+
 | ID                                   | Resource ID                          \
@@ -1078,7 +1081,7 @@ class ShellQuerySamplesCommandTest(utils.BaseTestCase):
 | instance | gauge | 1      | instance | 2014-02-19T05:50:16.673604 |
 +--------------------------------------+--------------------------------------\
 +----------+-------+--------+----------+----------------------------+
-''', sys.stdout.getvalue())
+'''), sys.stdout.getvalue())
 
     @mock.patch('sys.stdout', new=six.StringIO())
     def test_query_raises_command_error(self):
@@ -1234,7 +1237,7 @@ class ShellQueryAlarmHistoryCommandTest(utils.BaseTestCase):
 
         ceilometer_shell.do_query_alarm_history(self.cc, self.args)
 
-        self.assertEqual('''\
+        self.assertEqual(ccc_utils.parse_date('''\
 +----------------------------------+--------------------------------------+-\
 ------------+----------------------------------------------+----------------\
 ------------+
@@ -1250,7 +1253,7 @@ rule change | {"threshold": 42.0, "evaluation_periods": 4} | 2014-03-11T16:0\
 +----------------------------------+--------------------------------------+-\
 ------------+----------------------------------------------+----------------\
 ------------+
-''', sys.stdout.getvalue())
+'''), sys.stdout.getvalue())
 
     @mock.patch('sys.stdout', new=six.StringIO())
     def test_query_raises_command_err(self):
@@ -1567,7 +1570,7 @@ class ShellEventListCommandTest(utils.BaseTestCase):
                       for event in self.EVENTS]
         self.cc.events.list.return_value = ret_events
         ceilometer_shell.do_event_list(self.cc, self.args)
-        self.assertEqual('''\
+        self.assertEqual(ccc_utils.parse_date('''\
 +--------------------------------------+-------------------------------+\
 ----------------------------+-------------------------------+
 | Message ID                           | Event Type                    |\
@@ -1596,7 +1599,7 @@ class ShellEventListCommandTest(utils.BaseTestCase):
                             | +-------+--------+--------+   |
 +--------------------------------------+-------------------------------+\
 ----------------------------+-------------------------------+
-''', sys.stdout.getvalue())
+'''), sys.stdout.getvalue())
 
     @mock.patch('sys.stdout', new=six.StringIO())
     def test_event_list_no_traits(self):
@@ -1605,7 +1608,7 @@ class ShellEventListCommandTest(utils.BaseTestCase):
                       for event in self.EVENTS]
         self.cc.events.list.return_value = ret_events
         ceilometer_shell.do_event_list(self.cc, self.args)
-        self.assertEqual('''\
+        self.assertEqual(ccc_utils.parse_date('''\
 +--------------------------------------+-------------------------------\
 +----------------------------+
 | Message ID                           | Event Type                    \
@@ -1618,7 +1621,7 @@ class ShellEventListCommandTest(utils.BaseTestCase):
 | 2015-01-12T04:03:28.452495 |
 +--------------------------------------+-------------------------------\
 +----------------------------+
-''', sys.stdout.getvalue())
+'''), sys.stdout.getvalue())
 
 
 class ShellShadowedArgsTest(test_shell.ShellTestBase):
@@ -1832,6 +1835,38 @@ class ShellMeterListCommandTest(utils.BaseTestCase):
 ''', sys.stdout.getvalue())
 
 
+class ShellMetertypeListCommandTest(utils.BaseTestCase):
+
+    METERTYPE = {
+        "name": "image.size",
+        "type": "gauge",
+        "unit": "B",
+    }
+
+    def setUp(self):
+        super(ShellMetertypeListCommandTest, self).setUp()
+        self.cc = mock.Mock()
+        self.cc.metertypes.list = mock.Mock()
+        self.args = mock.MagicMock()
+        self.args.limit = None
+
+    @mock.patch('sys.stdout', new=six.StringIO())
+    def test_metertype_list(self):
+        metertype = metertypes.MeterType(mock.Mock(), self.METERTYPE)
+        self.cc.metertypes.list.return_value = [metertype]
+
+        ceilometer_shell.do_metertype_list(self.cc, self.args)
+        self.cc.metertypes.list.assert_called_once_with(q=[], limit=None)
+
+        self.assertEqual('''\
++------------+-------+------+
+| Name       | Type  | Unit |
++------------+-------+------+
+| image.size | gauge | B    |
++------------+-------+------+
+''', sys.stdout.getvalue())
+
+
 class ShellResourceListCommandTest(utils.BaseTestCase):
 
     RESOURCE = {
@@ -1879,6 +1914,118 @@ class ShellResourceListCommandTest(utils.BaseTestCase):
 | resource-id | openstack | user    | project    |
 +-------------+-----------+---------+------------+
 ''', sys.stdout.getvalue())
+
+
+class ShellPipelineListCommandTest(utils.BaseTestCase):
+
+    PIPELINE = [{"name": "csv_sink",
+                 "enabled": "True",
+                 "location": "test",
+                 "max_bytes": "test",
+                 "backup_count": "test",
+                 "compress": "True"},
+                {"name": "vswitch_avg_sink",
+                 "enabled": "False",
+                 "location": "test",
+                 "max_bytes": "test",
+                 "backup_count": "test",
+                 "compress": "False"}]
+
+    def setUp(self):
+        super(ShellPipelineListCommandTest, self).setUp()
+        self.cc = mock.Mock()
+        self.cc.pipelines.list = mock.Mock()
+        self.args = mock.MagicMock()
+
+    @mock.patch('sys.stdout', new=six.StringIO())
+    def test_pipeline_list(self):
+        pipeline = [pipelines.Pipeline(mock.Mock(), p) for p in self.PIPELINE]
+        self.cc.pipelines.list.return_value = pipeline
+        ceilometer_shell.do_pipeline_list(self.cc, self.args)
+        self.cc.pipelines.list.assert_called_once_with(q=[])
+
+        self.assertEqual('''\
++------------------+---------+----------+-----------+--------------+----------+
+| Name             | Enabled | Location | Max Bytes | Backup Count | Compress |
++------------------+---------+----------+-----------+--------------+----------+
+| vswitch_avg_sink | False   | test     | test      | test         | False    |
+| csv_sink         | True    | test     | test      | test         | True     |
++------------------+---------+----------+-----------+--------------+----------+
+''', sys.stdout.getvalue())
+
+
+class ShellPipelineShowCommandTest(utils.BaseTestCase):
+
+    PIPELINE = {
+        "name": "csv_sink",
+        "enabled": "True",
+        "location": "test",
+        "max_bytes": "test",
+        "backup_count": "test",
+        "compress": "True"
+    }
+
+    def setUp(self):
+        super(ShellPipelineShowCommandTest, self).setUp()
+        self.cc = mock.Mock()
+        self.cc.pipelines = mock.Mock()
+        self.args = mock.Mock()
+        self.args.name = "csv_sink"
+
+    @mock.patch('sys.stdout', new=six.StringIO())
+    def test_pipeline_show(self):
+        pipeline = pipelines.Pipeline(mock.Mock(), self.PIPELINE)
+        self.cc.pipelines.get.return_value = pipeline
+
+        ceilometer_shell.do_pipeline_show(self.cc, self.args)
+        self.cc.pipelines.get.assert_called_once_with(self.args.name)
+
+        self.assertEqual('''\
++--------------+----------+
+| Property     | Value    |
++--------------+----------+
+| backup_count | test     |
+| compress     | True     |
+| enabled      | True     |
+| location     | test     |
+| max_bytes    | test     |
+| name         | csv_sink |
++--------------+----------+
+''', sys.stdout.getvalue())
+
+
+class ShellPipelineUpdateCommandTest(utils.BaseTestCase):
+
+    PIPELINE_NAME = "csv_sink"
+    PIPELINE = {
+        "name": "csv_sink",
+        "enabled": "True",
+        "location": "test",
+        "max_bytes": "test",
+        "backup_count": "test",
+        "compress": "True"
+    }
+
+    def setUp(self):
+        super(ShellPipelineUpdateCommandTest, self).setUp()
+        self.cc = mock.Mock()
+        self.cc.pipelines = mock.Mock()
+        self.args = mock.Mock()
+        self.args.name = self.PIPELINE_NAME
+        self.args.enabled = "False"
+        self.args.compress = "False"
+
+    @mock.patch('sys.stdout', new=six.StringIO())
+    def test_pipeline_update(self):
+        pipeline = [pipelines.Pipeline(mock.Mock(), self.PIPELINE)]
+        self.cc.pipelines.get.return_value = pipeline
+        self.cc.pipelines.update.return_value = pipeline[0]
+
+        ceilometer_shell.do_pipeline_update(self.cc, self.args)
+        args, kwargs = self.cc.pipelines.update.call_args
+        self.assertEqual(self.PIPELINE_NAME, args[0])
+        self.assertEqual("False", kwargs.get("enabled"))
+        self.assertEqual("False", kwargs.get("compress"))
 
 
 class ShellEventTypeListCommandTest(utils.BaseTestCase):

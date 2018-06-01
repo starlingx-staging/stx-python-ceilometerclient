@@ -1,0 +1,7 @@
+[run]
+branch = True
+source =  ceilometerclient
+omit = ceilometerclient/tests/*
+
+[report]
+ignore_errors = True

@@ -21,6 +21,8 @@ from ceilometerclient.v2 import capabilities
 from ceilometerclient.v2 import event_types
 from ceilometerclient.v2 import events
 from ceilometerclient.v2 import meters
+from ceilometerclient.v2 import metertypes
+from ceilometerclient.v2 import pipelines
 from ceilometerclient.v2 import query
 from ceilometerclient.v2 import resources
 from ceilometerclient.v2 import samples
@@ -79,6 +81,8 @@ class Client(object):
         self.statistics = statistics.StatisticsManager(self.http_client)
         self.resources = resources.ResourceManager(self.http_client)
         self.alarms = alarms.AlarmManager(self.alarm_client)
+        self.metertypes = metertypes.MeterTypeManager(self.http_client)
+        self.pipelines = pipelines.PipelineManager(self.http_client)
         self.events = events.EventManager(self.event_client)
         self.event_types = event_types.EventTypeManager(self.event_client)
         self.traits = traits.TraitManager(self.event_client)
@@ -107,6 +111,8 @@ class Client(object):
         if session:
             # keystone session can be shared between client
             ceilo_kwargs['session'] = kwargs['session'] = session
+            # session must be unverified to allow alarms in https
+            session.verify = False
             if endpoint:
                 kwargs['endpoint_override'] = endpoint
         elif auth_plugin and kwargs.get('auth_url'):

@@ -94,6 +94,7 @@ class HTTPClient(object):
         self.user_agent = user_agent or self.user_agent
 
         self.times = []  # [("item", starttime, endtime), ...]
+        self.times_max_len = 200
         self.timings = timings
 
         # requests within the same session can reuse TCP connections from pool
@@ -159,6 +160,12 @@ class HTTPClient(object):
     def reset_timings(self):
         self.times = []
 
+    def get_timings_max_len(self):
+        return self.times_max_len
+
+    def set_timings_max_len(self, new_len):
+        self.times_max_len = new_len
+
     def request(self, method, url, **kwargs):
         """Send an http request with the specified characteristics.
 
@@ -190,6 +197,9 @@ class HTTPClient(object):
         if self.timings:
             self.times.append(("%s %s" % (method, url),
                                start_time, time.time()))
+            # remove oldest items until we maintain max length
+            while len(self.times) > self.times_max_len:
+                del self.times[0]
         self._http_log_resp(resp)
 
         self.last_request_id = resp.headers.get('x-openstack-request-id')
