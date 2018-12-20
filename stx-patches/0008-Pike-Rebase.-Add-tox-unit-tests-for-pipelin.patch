@@ -1,0 +1,404 @@
+From 57ba90e1df1c2d875493e0a1b213527ce238ee76 Mon Sep 17 00:00:00 2001
+From: Angie Wang <Angie.Wang@windriver.com>
+Date: Thu, 12 Jan 2017 17:34:18 -0500
+Subject: [PATCH 08/14] Pike Rebase. Add tox unit tests for pipelines, metertypes
+
+---
+ ceilometerclient/tests/unit/v2/test_metertypes.py |  64 ++++++++++
+ ceilometerclient/tests/unit/v2/test_pipelines.py  | 141 +++++++++++++++++++++
+ ceilometerclient/tests/unit/v2/test_shell.py      | 146 ++++++++++++++++++++++
+ 3 files changed, 351 insertions(+)
+ create mode 100644 ceilometerclient/tests/unit/v2/test_metertypes.py
+ create mode 100644 ceilometerclient/tests/unit/v2/test_pipelines.py
+
+diff --git a/ceilometerclient/tests/unit/v2/test_metertypes.py b/ceilometerclient/tests/unit/v2/test_metertypes.py
+new file mode 100644
+index 0000000..2af2c53
+--- /dev/null
++++ b/ceilometerclient/tests/unit/v2/test_metertypes.py
+@@ -0,0 +1,64 @@
++# Copyright 2012 OpenStack Foundation
++# All Rights Reserved.
++#
++#    Licensed under the Apache License, Version 2.0 (the "License"); you may
++#    not use this file except in compliance with the License. You may obtain
++#    a copy of the License at
++#
++#         http://www.apache.org/licenses/LICENSE-2.0
++#
++#    Unless required by applicable law or agreed to in writing, software
++#    distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
++#    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
++#    License for the specific language governing permissions and limitations
++#    under the License.
++#
++# Copyright (c) 2016 Wind River Systems, Inc.
++#
++#
++#
++#
++#
++from ceilometerclient.apiclient import client
++from ceilometerclient.apiclient import fake_client
++from ceilometerclient.tests.unit import utils
++import ceilometerclient.v2.metertypes
++
++fixtures = {
++    '/v2/wrs-metertypes': {
++        'GET': (
++            {},
++            [
++                {
++                    'name': 'image.size',
++                    'type': 'gauge',
++                    'unit': 'B',
++                },
++                {
++                    'name': 'platform.cpu.util',
++                    'type': 'delta',
++                    'unit': '%',
++                },
++            ]
++        ),
++    },
++}
++
++
++class MeterTypeManagerTest(utils.BaseTestCase):
++
++    def setUp(self):
++        super(MeterTypeManagerTest, self).setUp()
++        self.http_client = fake_client.FakeHTTPClient(fixtures=fixtures)
++        self.api = client.BaseClient(self.http_client)
++        self.mgr = ceilometerclient.v2.metertypes.MeterTypeManager(self.api)
++
++    def test_list_all(self):
++        metertypes = list(self.mgr.list())
++        expect = [
++            'GET', '/v2/wrs-metertypes'
++        ]
++        self.http_client.assert_called(*expect)
++        self.assertEqual(len(metertypes), 2)
++        self.assertEqual(metertypes[0].name, 'image.size')
++        self.assertEqual(metertypes[1].name, 'platform.cpu.util')
+diff --git a/ceilometerclient/tests/unit/v2/test_pipelines.py b/ceilometerclient/tests/unit/v2/test_pipelines.py
+new file mode 100644
+index 0000000..df0c293
+--- /dev/null
++++ b/ceilometerclient/tests/unit/v2/test_pipelines.py
+@@ -0,0 +1,141 @@
++# Copyright 2014 Hewlett-Packard Development Company, L.P.
++#
++#    Licensed under the Apache License, Version 2.0 (the "License"); you may
++#    not use this file except in compliance with the License. You may obtain
++#    a copy of the License at
++#
++#         http://www.apache.org/licenses/LICENSE-2.0
++#
++#    Unless required by applicable law or agreed to in writing, software
++#    distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
++#    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
++#    License for the specific language governing permissions and limitations
++#    under the License.
++#
++# Copyright (c) 2016 Wind River Systems, Inc.
++#
++#
++#
++#
++#
++import copy
++import six
++
++from ceilometerclient.apiclient import client
++from ceilometerclient.apiclient import fake_client
++from ceilometerclient.tests.unit import utils
++import ceilometerclient.v2.pipelines
++
++AN_PIPELINE = {
++    u'name': u'test_pipeline',
++    u'enabled': u'enabled',
++    u'location': u'location',
++    u'max_bytes': u'max_bytes',
++    u'backup_count': u'5',
++    u'compress': u'True',
++}
++
++UPDATED_PIPELINE = copy.deepcopy(AN_PIPELINE)
++UPDATED_PIPELINE['enabled'] = 'False'
++UPDATED_PIPELINE['max_bytes'] = '1000'
++UPDATE_PIPELINE = copy.deepcopy(UPDATED_PIPELINE)
++del UPDATE_PIPELINE['compress']
++
++GET_PIPELINE1 = {
++    'name': 'csv_sink',
++    'enabled': 'False',
++    'location': '/opt/cgcs/ceilometer/csv/pm.csv',
++    'max_bytes': '10000000',
++    'backup_count': '5',
++    'compress': 'True',
++}
++
++GET_PIPELINE2 = {
++    'name': 'vswitch_avg_sink',
++    'enabled': 'True',
++    'location': '/opt/cgcs/ceilometer/csv/vswitch.csv',
++    'max_bytes': '10000000',
++    'backup_count': '5',
++    'compress': 'True',
++}
++
++fixtures = {
++    '/v2/wrs-pipelines': {
++        'GET': (
++            {},
++            [GET_PIPELINE1, GET_PIPELINE2]
++        ),
++    },
++
++    '/v2/wrs-pipelines/csv_sink':
++    {
++        'GET': (
++            {},
++            GET_PIPELINE1
++        ),
++    },
++
++    '/v2/wrs-pipelines/test_pipeline':
++    {
++        'GET': (
++            {},
++            AN_PIPELINE,
++        ),
++        'PUT': (
++            {},
++            UPDATED_PIPELINE,
++        ),
++    },
++}
++
++
++class PipelineManagerTest(utils.BaseTestCase):
++
++    def setUp(self):
++        super(PipelineManagerTest, self).setUp()
++        self.http_client = fake_client.FakeHTTPClient(fixtures=fixtures)
++        self.api = client.BaseClient(self.http_client)
++        self.mgr = ceilometerclient.v2.pipelines.PipelineManager(self.api)
++
++    def test_list_all(self):
++        pipelines = list(self.mgr.list())
++        expect = [
++            'GET', '/v2/wrs-pipelines'
++        ]
++        self.http_client.assert_called(*expect)
++        self.assertEqual(len(pipelines), 2)
++        self.assertEqual(pipelines[0].name, 'csv_sink')
++        self.assertEqual(pipelines[1].name, 'vswitch_avg_sink')
++
++    def test_list_one(self):
++        pipeline = self.mgr.get('csv_sink')
++        expect = [
++            'GET', '/v2/wrs-pipelines/csv_sink'
++        ]
++        self.http_client.assert_called(*expect)
++        self.assertIsNotNone(pipeline)
++        self.assertEqual(pipeline.location, '/opt/cgcs/ceilometer/csv/pm.csv')
++
++    def test_get_from_pipeline_class(self):
++        pipeline = self.mgr.get(GET_PIPELINE1['name'])
++        self.assertIsNotNone(pipeline)
++        expect = [
++            'GET', '/v2/wrs-pipelines/csv_sink'
++        ]
++        self.http_client.assert_called(*expect)
++        self.assertEqual(GET_PIPELINE1, pipeline.to_dict())
++
++    def test_update(self):
++        pipeline = self.mgr.update('test_pipeline', **UPDATE_PIPELINE)
++        expect_get = [
++            'GET', '/v2/wrs-pipelines/test_pipeline'
++        ]
++        expect_put = [
++            'PUT', '/v2/wrs-pipelines/test_pipeline', UPDATED_PIPELINE
++        ]
++        self.http_client.assert_called(*expect_get, pos=0)
++        self.http_client.assert_called(*expect_put, pos=1)
++        self.assertIsNotNone(pipeline)
++        self.assertEqual(pipeline.name, 'test_pipeline')
++        for (key, value) in six.iteritems(UPDATED_PIPELINE):
++            self.assertEqual(getattr(pipeline, key), value)
+diff --git a/ceilometerclient/tests/unit/v2/test_shell.py b/ceilometerclient/tests/unit/v2/test_shell.py
+index eca15e3..3b35531 100644
+--- a/ceilometerclient/tests/unit/v2/test_shell.py
++++ b/ceilometerclient/tests/unit/v2/test_shell.py
+@@ -29,6 +29,8 @@ from ceilometerclient.v2 import capabilities
+ from ceilometerclient.v2 import event_types
+ from ceilometerclient.v2 import events
+ from ceilometerclient.v2 import meters
++from ceilometerclient.v2 import metertypes
++from ceilometerclient.v2 import pipelines
+ from ceilometerclient.v2 import resources
+ from ceilometerclient.v2 import samples
+ from ceilometerclient.v2 import shell as ceilometer_shell
+@@ -1832,6 +1834,38 @@ class ShellMeterListCommandTest(utils.BaseTestCase):
+ ''', sys.stdout.getvalue())
+ 
+ 
++class ShellMetertypeListCommandTest(utils.BaseTestCase):
++
++    METERTYPE = {
++        "name": "image.size",
++        "type": "gauge",
++        "unit": "B",
++    }
++
++    def setUp(self):
++        super(ShellMetertypeListCommandTest, self).setUp()
++        self.cc = mock.Mock()
++        self.cc.metertypes.list = mock.Mock()
++        self.args = mock.MagicMock()
++        self.args.limit = None
++
++    @mock.patch('sys.stdout', new=six.StringIO())
++    def test_metertype_list(self):
++        metertype = metertypes.MeterType(mock.Mock(), self.METERTYPE)
++        self.cc.metertypes.list.return_value = [metertype]
++
++        ceilometer_shell.do_metertype_list(self.cc, self.args)
++        self.cc.metertypes.list.assert_called_once_with(q=[], limit=None)
++
++        self.assertEqual('''\
+++------------+-------+------+
++| Name       | Type  | Unit |
+++------------+-------+------+
++| image.size | gauge | B    |
+++------------+-------+------+
++''', sys.stdout.getvalue())
++
++
+ class ShellResourceListCommandTest(utils.BaseTestCase):
+ 
+     RESOURCE = {
+@@ -1881,6 +1915,118 @@ class ShellResourceListCommandTest(utils.BaseTestCase):
+ ''', sys.stdout.getvalue())
+ 
+ 
++class ShellPipelineListCommandTest(utils.BaseTestCase):
++
++    PIPELINE = [{"name": "csv_sink",
++                 "enabled": "True",
++                 "location": "test",
++                 "max_bytes": "test",
++                 "backup_count": "test",
++                 "compress": "True"},
++                {"name": "vswitch_avg_sink",
++                 "enabled": "False",
++                 "location": "test",
++                 "max_bytes": "test",
++                 "backup_count": "test",
++                 "compress": "False"}]
++
++    def setUp(self):
++        super(ShellPipelineListCommandTest, self).setUp()
++        self.cc = mock.Mock()
++        self.cc.pipelines.list = mock.Mock()
++        self.args = mock.MagicMock()
++
++    @mock.patch('sys.stdout', new=six.StringIO())
++    def test_pipeline_list(self):
++        pipeline = [pipelines.Pipeline(mock.Mock(), p) for p in self.PIPELINE]
++        self.cc.pipelines.list.return_value = pipeline
++        ceilometer_shell.do_pipeline_list(self.cc, self.args)
++        self.cc.pipelines.list.assert_called_once_with(q=[])
++
++        self.assertEqual('''\
+++------------------+---------+----------+-----------+--------------+----------+
++| Name             | Enabled | Location | Max Bytes | Backup Count | Compress |
+++------------------+---------+----------+-----------+--------------+----------+
++| vswitch_avg_sink | False   | test     | test      | test         | False    |
++| csv_sink         | True    | test     | test      | test         | True     |
+++------------------+---------+----------+-----------+--------------+----------+
++''', sys.stdout.getvalue())
++
++
++class ShellPipelineShowCommandTest(utils.BaseTestCase):
++
++    PIPELINE = {
++        "name": "csv_sink",
++        "enabled": "True",
++        "location": "test",
++        "max_bytes": "test",
++        "backup_count": "test",
++        "compress": "True"
++    }
++
++    def setUp(self):
++        super(ShellPipelineShowCommandTest, self).setUp()
++        self.cc = mock.Mock()
++        self.cc.pipelines = mock.Mock()
++        self.args = mock.Mock()
++        self.args.name = "csv_sink"
++
++    @mock.patch('sys.stdout', new=six.StringIO())
++    def test_pipeline_show(self):
++        pipeline = pipelines.Pipeline(mock.Mock(), self.PIPELINE)
++        self.cc.pipelines.get.return_value = pipeline
++
++        ceilometer_shell.do_pipeline_show(self.cc, self.args)
++        self.cc.pipelines.get.assert_called_once_with(self.args.name)
++
++        self.assertEqual('''\
+++--------------+----------+
++| Property     | Value    |
+++--------------+----------+
++| backup_count | test     |
++| compress     | True     |
++| enabled      | True     |
++| location     | test     |
++| max_bytes    | test     |
++| name         | csv_sink |
+++--------------+----------+
++''', sys.stdout.getvalue())
++
++
++class ShellPipelineUpdateCommandTest(utils.BaseTestCase):
++
++    PIPELINE_NAME = "csv_sink"
++    PIPELINE = {
++        "name": "csv_sink",
++        "enabled": "True",
++        "location": "test",
++        "max_bytes": "test",
++        "backup_count": "test",
++        "compress": "True"
++    }
++
++    def setUp(self):
++        super(ShellPipelineUpdateCommandTest, self).setUp()
++        self.cc = mock.Mock()
++        self.cc.pipelines = mock.Mock()
++        self.args = mock.Mock()
++        self.args.name = self.PIPELINE_NAME
++        self.args.enabled = "False"
++        self.args.compress = "False"
++
++    @mock.patch('sys.stdout', new=six.StringIO())
++    def test_pipeline_update(self):
++        pipeline = [pipelines.Pipeline(mock.Mock(), self.PIPELINE)]
++        self.cc.pipelines.get.return_value = pipeline
++        self.cc.pipelines.update.return_value = pipeline[0]
++
++        ceilometer_shell.do_pipeline_update(self.cc, self.args)
++        args, kwargs = self.cc.pipelines.update.call_args
++        self.assertEqual(self.PIPELINE_NAME, args[0])
++        self.assertEqual("False", kwargs.get("enabled"))
++        self.assertEqual("False", kwargs.get("compress"))
++
++
+ class ShellEventTypeListCommandTest(utils.BaseTestCase):
+ 
+     EVENT_TYPE = {
+-- 
+2.7.4
+

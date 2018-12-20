@@ -1,0 +1,108 @@
+From 315fdd412e62c54b93aa9cdae4432ead8103040f Mon Sep 17 00:00:00 2001
+From: Angie Wang <Angie.Wang@windriver.com>
+Date: Thu, 12 Jan 2017 17:32:57 -0500
+Subject: [PATCH 06/14] Pike Rebase. New Ceilometer metertype-list API
+
+Original commit:
+   8e3e9a1c1be33003cf957f80a3892828ba236e21
+   17eefead56816d9ab4daa6b8b89366e3077694ca
+
+New Ceilometer metertype-list API
+
+This is v2/wrs-metertypes
+This provides a new CLI   ceilometer metertype-list
+This returns meters themselves, rather than all the resource info
+JIRA requires Horizon, ceilometerclient and ceilometer submissions to be complete
+---
+ ceilometerclient/v2/client.py     |  2 ++
+ ceilometerclient/v2/metertypes.py | 31 +++++++++++++++++++++++++++++++
+ ceilometerclient/v2/shell.py      | 15 +++++++++++++++
+ 3 files changed, 48 insertions(+)
+ create mode 100644 ceilometerclient/v2/metertypes.py
+
+diff --git a/ceilometerclient/v2/client.py b/ceilometerclient/v2/client.py
+index 676de29..49b3059 100644
+--- a/ceilometerclient/v2/client.py
++++ b/ceilometerclient/v2/client.py
+@@ -21,6 +21,7 @@ from ceilometerclient.v2 import capabilities
+ from ceilometerclient.v2 import event_types
+ from ceilometerclient.v2 import events
+ from ceilometerclient.v2 import meters
++from ceilometerclient.v2 import metertypes
+ from ceilometerclient.v2 import pipelines
+ from ceilometerclient.v2 import query
+ from ceilometerclient.v2 import resources
+@@ -80,6 +81,7 @@ class Client(object):
+         self.statistics = statistics.StatisticsManager(self.http_client)
+         self.resources = resources.ResourceManager(self.http_client)
+         self.alarms = alarms.AlarmManager(self.alarm_client)
++        self.metertypes = metertypes.MeterTypeManager(self.http_client)
+         self.pipelines = pipelines.PipelineManager(self.http_client)
+         self.events = events.EventManager(self.event_client)
+         self.event_types = event_types.EventTypeManager(self.event_client)
+diff --git a/ceilometerclient/v2/metertypes.py b/ceilometerclient/v2/metertypes.py
+new file mode 100644
+index 0000000..18fe641
+--- /dev/null
++++ b/ceilometerclient/v2/metertypes.py
+@@ -0,0 +1,31 @@
++#
++# Copyright 2013 Red Hat, Inc
++#
++#    Licensed under the Apache License, Version 2.0 (the "License"); you may
++#    not use this file except in compliance with the License. You may obtain
++#    a copy of the License at
++#
++#         http://www.apache.org/licenses/LICENSE-2.0
++#
++#    Unless required by applicable law or agreed to in writing, software
++#    distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
++#    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
++#    License for the specific language governing permissions and limitations
++#    under the License.
++
++from ceilometerclient.common import base
++from ceilometerclient.v2 import options
++
++
++class MeterType(base.Resource):
++    def __repr__(self):
++        return "<MeterType %s>" % self._info
++
++
++class MeterTypeManager(base.Manager):
++    resource_class = MeterType
++
++    def list(self, q=None, limit=None):
++        path = '/v2/wrs-metertypes'
++        params = ['limit=%s' % limit] if limit else None
++        return self._list(options.build_url(path, q, params))
+diff --git a/ceilometerclient/v2/shell.py b/ceilometerclient/v2/shell.py
+index 819a957..74b3e6f 100644
+--- a/ceilometerclient/v2/shell.py
++++ b/ceilometerclient/v2/shell.py
+@@ -294,6 +294,21 @@ def do_sample_create_list(cc, args={}):
+     utils.print_list(samples, fields, field_labels, sortby=None)
+ 
+ 
++@utils.arg('-q', '--query', metavar='<QUERY>',
++           help='key[op]data_type::value; list. data_type is optional, '
++                'but if supplied must be string, integer, float, or boolean.')
++@utils.arg('-l', '--limit', metavar='<NUMBER>',
++           help='Maximum number of meters to return.')
++def do_metertype_list(cc, args={}):
++    """List the user's meter types."""
++    meter_types = cc.metertypes.list(q=options.cli_to_array(args.query),
++                                     limit=args.limit)
++    field_labels = ['Name', 'Type', 'Unit']
++    fields = ['name', 'type', 'unit']
++    utils.print_list(meter_types, fields, field_labels,
++                     sortby=0)
++
++
+ def _display_alarm_list(alarms, sortby=None):
+     # omit action initially to keep output width sane
+     # (can switch over to vertical formatting when available from CLIFF)
+-- 
+2.7.4
+

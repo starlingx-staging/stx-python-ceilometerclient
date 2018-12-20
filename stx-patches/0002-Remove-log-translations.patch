@@ -1,0 +1,39 @@
+From af91cfc46a91976867cd925ec38ebda74a92a539 Mon Sep 17 00:00:00 2001
+From: luqitao <qtlu@fiberhome.com>
+Date: Tue, 21 Mar 2017 02:26:57 -0400
+Subject: [PATCH 02/14] Remove log translations
+
+Log messages are no longer being translated. This removes all use of
+the _LE, _LI, and _LW translation markers to simplify logging and to
+avoid confusion with new contributions.
+
+See:
+http://lists.openstack.org/pipermail/openstack-i18n/2016-November/002574.html
+http://lists.openstack.org/pipermail/openstack-dev/2017-March/113365.html
+
+Change-Id: I0dcc1b8e9f0dd51b6892126a2ef010e6f3a2d940
+---
+ ceilometerclient/i18n.py | 10 ----------
+ 1 file changed, 10 deletions(-)
+
+diff --git a/ceilometerclient/i18n.py b/ceilometerclient/i18n.py
+index c63b55a..26861e3 100644
+--- a/ceilometerclient/i18n.py
++++ b/ceilometerclient/i18n.py
+@@ -25,13 +25,3 @@ _translators = oslo_i18n.TranslatorFactory(domain='ceilometerclient')
+ 
+ # The primary translation function using the well-known name "_"
+ _ = _translators.primary
+-
+-# Translators for log levels.
+-#
+-# The abbreviated names are meant to reflect the usual use of a short
+-# name like '_'. The "L" is for "log" and the other letter comes from
+-# the level.
+-_LI = _translators.log_info
+-_LW = _translators.log_warning
+-_LE = _translators.log_error
+-_LC = _translators.log_critical
+-- 
+2.7.4
+
