@@ -1,0 +1,210 @@
+From 41676e3f85111f4936bffa4da82c540c28631583 Mon Sep 17 00:00:00 2001
+From: Angie Wang <Angie.Wang@windriver.com>
+Date: Thu, 12 Jan 2017 17:25:43 -0500
+Subject: [PATCH 05/14] Pike Rebase. Add ceilometer pipeline API and commands
+
+---
+ ceilometerclient/v2/client.py    |  2 +
+ ceilometerclient/v2/pipelines.py | 73 ++++++++++++++++++++++++++++++++++
+ ceilometerclient/v2/shell.py     | 85 ++++++++++++++++++++++++++++++++++++++++
+ 3 files changed, 160 insertions(+)
+ create mode 100644 ceilometerclient/v2/pipelines.py
+
+diff --git a/ceilometerclient/v2/client.py b/ceilometerclient/v2/client.py
+index e61e43f..676de29 100644
+--- a/ceilometerclient/v2/client.py
++++ b/ceilometerclient/v2/client.py
+@@ -21,6 +21,7 @@ from ceilometerclient.v2 import capabilities
+ from ceilometerclient.v2 import event_types
+ from ceilometerclient.v2 import events
+ from ceilometerclient.v2 import meters
++from ceilometerclient.v2 import pipelines
+ from ceilometerclient.v2 import query
+ from ceilometerclient.v2 import resources
+ from ceilometerclient.v2 import samples
+@@ -79,6 +80,7 @@ class Client(object):
+         self.statistics = statistics.StatisticsManager(self.http_client)
+         self.resources = resources.ResourceManager(self.http_client)
+         self.alarms = alarms.AlarmManager(self.alarm_client)
++        self.pipelines = pipelines.PipelineManager(self.http_client)
+         self.events = events.EventManager(self.event_client)
+         self.event_types = event_types.EventTypeManager(self.event_client)
+         self.traits = traits.TraitManager(self.event_client)
+diff --git a/ceilometerclient/v2/pipelines.py b/ceilometerclient/v2/pipelines.py
+new file mode 100644
+index 0000000..77cbd94
+--- /dev/null
++++ b/ceilometerclient/v2/pipelines.py
+@@ -0,0 +1,73 @@
++#
++#    Licensed under the Apache License, Version 2.0 (the "License"); you may
++#    not use this file except in compliance with the License. You may obtain
++#    a copy of the License at
++#
++#         http://www.apache.org/licenses/LICENSE-2.0
++#
++#    Unless required by applicable law or agreed to in writing, software
++#    distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
++#    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
++#    License for the specific language governing permissions and limitations
++#    under the License.
++#
++#    Copyright (c) 2013-2014 Wind River Systems, Inc.
++#
++#
++#
++#
++
++from ceilometerclient.common import base
++from ceilometerclient.common import utils
++from ceilometerclient.v2 import options
++
++
++UPDATABLE_ATTRIBUTES = [
++    'enabled',
++    'location',
++    'max_bytes',
++    'backup_count',
++    'compress'
++]
++
++CREATION_ATTRIBUTES = UPDATABLE_ATTRIBUTES + ['name', ]
++
++
++class Pipeline(base.Resource):
++    def __repr__(self):
++        return "<Pipeline %s>" % self._info
++
++
++class PipelineManager(base.Manager):
++    resource_class = Pipeline
++
++    @staticmethod
++    def _path(pipeline_name=None):
++        return ('/v2/wrs-pipelines/%s' % pipeline_name
++                if pipeline_name else '/v2/wrs-pipelines')
++
++    def get(self, pipeline_name):
++        try:
++            return self._list(self._path(pipeline_name), expect_single=True)[0]
++        except IndexError:
++            return None
++
++    def list(self, pipeline_name=None, q=None, limit=None):
++        path = self._path(pipeline_name)
++        params = ['limit=%s' % str(limit)] if limit else None
++        return self._list(options.build_url(path, q, params))
++
++    def create(self, **kwargs):
++        new = dict((key, value) for (key, value) in kwargs.items()
++                   if key in CREATION_ATTRIBUTES)
++        url = self._path(pipeline_name=kwargs['pipeline_name'])
++        body = self.api.post(url, json=[new]).json()
++        if body:
++            return [Pipeline(self, b) for b in body]
++
++    def update(self, pipeline_name, **kwargs):
++        updated = self.get(pipeline_name).to_dict()
++        kwargs = dict((k, v) for k, v in kwargs.items()
++                      if k in updated and k in UPDATABLE_ATTRIBUTES)
++        utils.merge_nested_dict(updated, kwargs, depth=1)
++        return self._update(self._path(pipeline_name), updated)
+diff --git a/ceilometerclient/v2/shell.py b/ceilometerclient/v2/shell.py
+index ca9e264..819a957 100644
+--- a/ceilometerclient/v2/shell.py
++++ b/ceilometerclient/v2/shell.py
+@@ -1127,6 +1127,91 @@ def do_resource_show(cc, args={}):
+         utils.print_dict(data, wrap=72)
+ 
+ 
++# Code related to showing pipeline data (currently: CSV publisher)
++# fields = ['name', 'enabled', 'location', 'max_bytes',
++#           'backup_count', 'compress']
++
++def common_pipeline_arguments(create=False):
++    def _wrapper(func):
++        @utils.arg('--name', metavar='<NAME>', required=create,
++                   help='Name of the pipeline (must be unique per tenant)')
++        @utils.arg('--enabled', type=strutils.bool_from_string,
++                   metavar='{True|False}',
++                   help='True if enabling this pipeline')
++        @utils.arg('--location', metavar='<LOCATION>',
++                   help='Full path of the output file.')
++        @utils.arg('--backup_count', type=int, metavar='<BACKUP_COUNT>',
++                   help='Number of backup files to keep')
++        @utils.arg('--max_bytes', type=int, metavar='<MAX_BYTES>',
++                   help='Maximum size of the file in bytes')
++        @utils.arg('--compress', type=strutils.bool_from_string,
++                   metavar='{True|False}',
++                   help='True if compressing backups')
++        @functools.wraps(func)
++        def _wrapped(*args, **kwargs):
++            return func(*args, **kwargs)
++        return _wrapped
++    return _wrapper
++
++
++def _show_pipeline(pipeline):
++    fields = ['name', 'enabled', 'location', 'max_bytes',
++              'backup_count', 'compress']
++    data = dict([(f, getattr(pipeline, f, '')) for f in fields])
++    utils.print_dict(data, wrap=72)
++
++
++@utils.arg('-q', '--query', metavar='<QUERY>',
++           help='key[op]value; list.')
++def do_pipeline_list(cc, args={}):
++    '''List the pipelines.'''
++    pipelines = cc.pipelines.list(q=options.cli_to_array(args.query))
++    field_labels = ['Name', 'Enabled', 'Location', 'Max Bytes',
++                    'Backup Count', 'Compress']
++    fields = ['name', 'enabled', 'location', 'max_bytes',
++              'backup_count', 'compress']
++    utils.print_list(pipelines, fields, field_labels,
++                     sortby=1)
++
++
++@utils.arg('-n', '--name', metavar='<PIPELINE_NAME>', required=True,
++           help='Name of the pipeline to show.')
++def do_pipeline_show(cc, args={}):
++    '''Show the pipeline.'''
++    try:
++        pipeline = cc.pipelines.get(args.name)
++    except exc.HTTPNotFound:
++        raise exc.CommandError('Pipeline not found: %s' % args.name)
++    _show_pipeline(pipeline)
++
++
++@utils.arg('-n', '--name', metavar='<PIPELINE_NAME>', required=True,
++           help='Name of the pipline to update.')
++@utils.arg('--enabled', type=strutils.bool_from_string,
++           metavar='{True|False}',
++           help='True if enabling this pipeline')
++@utils.arg('--location', metavar='<LOCATION>',
++           help='Full path of the output file.')
++@utils.arg('--backup_count', type=int, metavar='<BACKUP_COUNT>',
++           help='Number of backup files to keep')
++@utils.arg('--max_bytes', type=int, metavar='<MAX_BYTES>',
++           help='Maximum size of the file in bytes')
++@utils.arg('--compress', type=strutils.bool_from_string,
++           metavar='{True|False}',
++           help='True if compressing backups')
++def do_pipeline_update(cc, args={}):
++    '''Update output values for an existing csv pipeline.'''
++    fields = dict(filter(lambda x: not (x[1] is None), vars(args).items()))
++    fields = utils.key_with_slash_to_nested_dict(fields)
++    # We do not permit changing:  name
++    fields.pop('name')
++    try:
++        pipeline = cc.pipelines.update(args.name, **fields)
++    except exc.HTTPNotFound:
++        raise exc.CommandError('Pipeline not found: %s' % args.name)
++    _show_pipeline(pipeline)
++
++
+ @utils.arg('-q', '--query', metavar='<QUERY>',
+            help='key[op]data_type::value; list. data_type is optional, '
+                 'but if supplied must be string, integer, float '
+-- 
+2.7.4
+

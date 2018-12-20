@@ -1,0 +1,25 @@
+From ee08dec53f430c3e8806e6de0ed541d650269be9 Mon Sep 17 00:00:00 2001
+From: Lachlan Plant <lachlan.plant@windriver.com>
+Date: Fri, 19 May 2017 11:30:37 -0400
+Subject: [PATCH 10/14] Pike Rebase. Allows VM to autoscale in https systems
+
+---
+ ceilometerclient/v2/client.py | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/ceilometerclient/v2/client.py b/ceilometerclient/v2/client.py
+index 49b3059..29162c5 100644
+--- a/ceilometerclient/v2/client.py
++++ b/ceilometerclient/v2/client.py
+@@ -111,6 +111,8 @@ class Client(object):
+         if session:
+             # keystone session can be shared between client
+             ceilo_kwargs['session'] = kwargs['session'] = session
++            # session must be unverified to allow alarms in https
++            session.verify = False
+             if endpoint:
+                 kwargs['endpoint_override'] = endpoint
+         elif auth_plugin and kwargs.get('auth_url'):
+-- 
+2.7.4
+

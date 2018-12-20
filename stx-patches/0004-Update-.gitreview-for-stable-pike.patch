@@ -1,0 +1,22 @@
+From d650f70d16b41b5f5bf65cc5685a30cae027d729 Mon Sep 17 00:00:00 2001
+From: OpenStack Release Bot <infra-root@openstack.org>
+Date: Fri, 28 Jul 2017 21:06:23 +0000
+Subject: [PATCH 04/14] Update .gitreview for stable/pike
+
+Change-Id: Ide04cf341f2dd3451cc6bb89996523da14fb7953
+---
+ .gitreview | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/.gitreview b/.gitreview
+index c4b5cc4..8eae5df 100644
+--- a/.gitreview
++++ b/.gitreview
+@@ -2,3 +2,4 @@
+ host=review.openstack.org
+ port=29418
+ project=openstack/python-ceilometerclient.git
++defaultbranch=stable/pike
+-- 
+2.7.4
+

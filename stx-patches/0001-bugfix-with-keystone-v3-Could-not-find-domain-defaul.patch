@@ -1,0 +1,46 @@
+From b78ff3321133f926ef766e5223a0c1e83a833c76 Mon Sep 17 00:00:00 2001
+From: zhangjianfeng <kill51216@163.com>
+Date: Wed, 5 Apr 2017 15:00:54 +0800
+Subject: [PATCH 01/14] [bugfix]with keystone v3 Could not find domain:
+ default.
+
+when we use adminrc with keystone v3  not set OS_PROJECT_DOMAIN_ID
+OS_USER_DOAMIN_ID,default ceilometerclient code will set it to
+string default.this will lead error.
+
+value is often like fdc79c4b63e8492d98271412320e8672
+so when change this code to set it as None.
+last we delete the user_domain_id and project_domain_id
+because it is not useful.
+
+closes-bug: 1679934
+
+Change-Id: I95c994406ed7a0b15ba6446e80f01e4f6787ec20
+---
+ ceilometerclient/client.py | 8 ++------
+ 1 file changed, 2 insertions(+), 6 deletions(-)
+
+diff --git a/ceilometerclient/client.py b/ceilometerclient/client.py
+index 17a75bc..8673e70 100644
+--- a/ceilometerclient/client.py
++++ b/ceilometerclient/client.py
+@@ -94,14 +94,10 @@ def _get_keystone_session(**kwargs):
+     project_domain_name = kwargs.pop('project_domain_name', None)
+     project_domain_id = kwargs.pop('project_domain_id', None)
+     if v3_auth_url:
+-        if not user_domain_id:
+-            user_domain_id = 'default'
+         if not user_domain_name:
+-            user_domain_name = 'default'
+-        if not project_domain_id:
+-            project_domain_id = 'default'
++            user_domain_name = 'Default'
+         if not project_domain_name:
+-            project_domain_name = 'default'
++            project_domain_name = 'Default'
+     auth = None
+ 
+     use_domain = (user_domain_id or user_domain_name or
+-- 
+2.7.4
+
